@@ -14,7 +14,9 @@ class PersonalData:
     apellidos: str
     area: str
     codigo: str
-    foto: Image.Image
+    tipo_documento: str
+    nro_documento: str
+    foto: Image.Image | None
 
     @property
     def nombre_completo(self) -> str:
@@ -27,6 +29,8 @@ class PersonalService:
         "apellidos": "Apellidos",
         "area": "Cargo/ Area",
         "codigo": "Codigo",
+        "tipo_documento": "Tipo de Documento",
+        "nro_documento": "NroDocumento",
         "foto": "Foto",
     }
 
@@ -36,34 +40,61 @@ class PersonalService:
         if not path.exists():
             raise FileNotFoundError(f"No se encontro el archivo: {path}")
 
-        workbook = load_workbook(path, data_only=True)
+        try:
+            workbook = load_workbook(path, data_only=True)
+        except Exception as exc:
+            raise ValueError(
+                f"Archivo '{path.name}', estructura del Excel: no se pudo abrir. Detalle: {exc}"
+            ) from exc
         worksheet = workbook.active
         columns = cls._resolve_columns(worksheet)
-        photos = cls._read_cell_photos(path)
+        try:
+            photos = cls._read_cell_photos(path)
+        except Exception as exc:
+            raise ValueError(
+                f"Hoja '{worksheet.title}', columna Foto: no se pudieron leer las imagenes. Detalle: {exc}"
+            ) from exc
         workers: list[PersonalData] = []
 
         for row in range(2, worksheet.max_row + 1):
-            nombres = cls._cell_text(worksheet.cell(row, columns["nombres"]).value)
-            apellidos = cls._cell_text(worksheet.cell(row, columns["apellidos"]).value)
-            area = cls._cell_text(worksheet.cell(row, columns["area"]).value)
-            codigo = cls._code_text(worksheet.cell(row, columns["codigo"]).value)
-            if not any((nombres, apellidos, area, codigo)):
-                continue
+            try:
+                nombres = cls._cell_text(worksheet.cell(row, columns["nombres"]).value)
+                apellidos = cls._cell_text(worksheet.cell(row, columns["apellidos"]).value)
+                area = cls._cell_text(worksheet.cell(row, columns["area"]).value)
+                codigo = cls._code_text(worksheet.cell(row, columns["codigo"]).value)
+                tipo_documento = cls._cell_text(worksheet.cell(row, columns["tipo_documento"]).value).upper()
+                nro_documento = cls._code_text(worksheet.cell(row, columns["nro_documento"]).value)
+                if not any((nombres, apellidos, area, codigo, tipo_documento, nro_documento)):
+                    continue
 
-            photo_cell = worksheet.cell(row, columns["foto"]).coordinate
-            photo = photos.get(photo_cell)
-            if photo is None:
-                raise ValueError(f"No se encontro la foto del trabajador en {photo_cell}.")
+                if tipo_documento and tipo_documento not in {"DNI", "CE"}:
+                    cell = worksheet.cell(row, columns["tipo_documento"]).coordinate
+                    raise ValueError(
+                        f"Fila {row}, celda {cell} (Tipo de Documento): "
+                        f"se encontro '{tipo_documento}', pero solo se admite DNI o CE."
+                    )
+                codigo = codigo.zfill(6) if codigo.isdigit() else codigo
 
-            workers.append(
-                PersonalData(
-                    nombres=nombres.upper(),
-                    apellidos=apellidos.upper(),
-                    area=area.upper(),
-                    codigo=codigo,
-                    foto=photo,
+                photo_cell = worksheet.cell(row, columns["foto"]).coordinate
+                photo = photos.get(photo_cell)
+
+                workers.append(
+                    PersonalData(
+                        nombres=nombres.upper(),
+                        apellidos=apellidos.upper(),
+                        area=area.upper(),
+                        codigo=codigo,
+                        tipo_documento=tipo_documento,
+                        nro_documento=nro_documento,
+                        foto=photo,
+                    )
                 )
-            )
+            except ValueError:
+                raise
+            except Exception as exc:
+                raise ValueError(
+                    f"Fila {row}, lectura de datos del abogado: {exc}"
+                ) from exc
 
         if not workers:
             raise ValueError("El archivo no contiene trabajadores para cargar.")
@@ -80,7 +111,9 @@ class PersonalService:
         for key, expected in cls.REQUIRED_HEADERS.items():
             normalized = cls._normalize_header(expected)
             if normalized not in normalized_headers:
-                raise ValueError(f"Falta la columna obligatoria: {expected}.")
+                raise ValueError(
+                    f"Fila 1, encabezados: falta la columna obligatoria '{expected}'."
+                )
             columns[key] = normalized_headers[normalized]
         return columns
 
@@ -103,6 +136,15 @@ class PersonalService:
     @classmethod
     def _read_cell_photos(cls, workbook_path: Path) -> dict[str, Image.Image]:
         with ZipFile(workbook_path) as archive:
+            required_parts = {
+                "xl/worksheets/sheet1.xml",
+                "xl/metadata.xml",
+                "xl/richData/rdrichvalue.xml",
+                "xl/richData/richValueRel.xml",
+                "xl/richData/_rels/richValueRel.xml.rels",
+            }
+            if not required_parts.issubset(archive.namelist()):
+                return {}
             sheet_root = ET.fromstring(archive.read("xl/worksheets/sheet1.xml"))
             metadata_root = ET.fromstring(archive.read("xl/metadata.xml"))
             rich_values_root = ET.fromstring(archive.read("xl/richData/rdrichvalue.xml"))

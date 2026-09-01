@@ -12,7 +12,6 @@ from models.constants import (
     MIN_DYNAMIC_FONT_SIZE,
     OUTPUT_DIR,
     PHOTO_AREA,
-    TEMPLATE_IMAGE_FALLBACK_PATH,
     TEMPLATE_IMAGE_PATH,
     TEXT_BOXES,
 )
@@ -22,11 +21,17 @@ from services.image_service import ImageService
 
 @dataclass(frozen=True)
 class CarnetData:
-    ruta_foto: Path | Image.Image
+    ruta_foto: Path | Image.Image | None
     nombre: str
     apellidos: str
     area: str
     codigo: str
+    tipo_documento: str
+    nro_documento: str
+
+    @property
+    def documento(self) -> str:
+        return f"{self.tipo_documento.strip().upper() or ' '}-{self.nro_documento.strip() or ' '}"
 
 
 class CarnetService:
@@ -39,18 +44,21 @@ class CarnetService:
 
         if isinstance(data.ruta_foto, Image.Image):
             foto = data.ruta_foto.convert("RGBA").copy()
-        else:
+        elif data.ruta_foto is not None:
             if not data.ruta_foto.exists():
                 raise FileNotFoundError("La fotografia seleccionada no existe.")
             foto = ImageService.abrir_imagen(data.ruta_foto)
-        foto = ImageService.ajustar_y_recortar_en_area(foto, PHOTO_AREA)
-        ImageService.pegar_en_area(carnet, foto, PHOTO_AREA)
+        else:
+            foto = None
+        if foto is not None:
+            foto = ImageService.ajustar_y_recortar_en_area(foto, PHOTO_AREA)
+            ImageService.pegar_en_area(carnet, foto, PHOTO_AREA)
 
         textos = {
-            "nombre": data.nombre.strip().upper(),
-            "apellidos": data.apellidos.strip().upper(),
-            "area": data.area.strip().upper(),
-            "codigo": data.codigo.strip(),
+            "nombre": data.nombre.strip().upper() or " ",
+            "apellidos": data.apellidos.strip().upper() or " ",
+            "area": data.area.strip().upper() or " ",
+            "codigo": self.formatear_codigo(data.codigo) or " ",
         }
 
         for key, text in textos.items():
@@ -73,7 +81,7 @@ class CarnetService:
                 color=FIXED_TEXT_COLORS[key],
             )
 
-        barcode_image = BarcodeService.generar_codigo_barras(data.codigo)
+        barcode_image = BarcodeService.generar_codigo_barras(data.documento)
         barcode_image = barcode_image.rotate(90, expand=True)
         barcode_image = ImageService.redimensionar_en_area(barcode_image, BARCODE_AREA)
         ImageService.pegar_en_area(carnet, barcode_image, BARCODE_AREA)
@@ -88,20 +96,13 @@ class CarnetService:
 
     @staticmethod
     def _validar_datos(data: CarnetData) -> None:
-        if not isinstance(data.ruta_foto, Image.Image) and not str(data.ruta_foto).strip():
-            raise ValueError("Debes seleccionar una fotografia.")
-
-        if not data.nombre.strip():
-            raise ValueError("Los nombres son obligatorios.")
-
-        if not data.apellidos.strip():
-            raise ValueError("Los apellidos son obligatorios.")
-
-        if not data.area.strip():
-            raise ValueError("El area o rol es obligatorio.")
-
-        if not data.codigo.strip():
-            raise ValueError("El codigo es obligatorio.")
+        tipo_documento = data.tipo_documento.strip().upper()
+        if tipo_documento and tipo_documento not in {"DNI", "CE"}:
+            raise ValueError("El Tipo de Documento debe ser DNI o CE.")
+    @staticmethod
+    def formatear_codigo(value: str) -> str:
+        codigo = value.strip()
+        return codigo.zfill(6) if codigo.isdigit() else codigo
 
     @staticmethod
     def _resolve_font_path() -> Path:
@@ -134,9 +135,6 @@ class CarnetService:
         if TEMPLATE_IMAGE_PATH.exists():
             return TEMPLATE_IMAGE_PATH
 
-        if TEMPLATE_IMAGE_FALLBACK_PATH.exists():
-            return TEMPLATE_IMAGE_FALLBACK_PATH
-
         raise FileNotFoundError(
-            "No se encontro la plantilla base en assets/front.png ni en assets/front.jpg."
+            "No se encontro la plantilla base en assets/front.png."
         )

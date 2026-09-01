@@ -14,6 +14,10 @@ AppId={{6B7F44E7-D623-4AD6-8920-5645BC56BBFC}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+VersionInfoVersion=1.0.0.0
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoDescription=Instalador de {#MyAppName}
 DefaultDirName={autopf}\{#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile={#SourcePath}\..\assets\app.ico
@@ -35,11 +39,10 @@ OutputBaseFilename=Generacion_Carnet_Trabajadores_Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern dynamic
-DefaultLanguage=spanish
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

@@ -18,8 +18,8 @@ class MainWindow(ctk.CTk):
         self.title("Generacion de Carnet de Trabajadores")
         if APP_ICON_PATH.exists():
             self.iconbitmap(str(APP_ICON_PATH))
-        self.geometry("1000x700")
-        self.minsize(900, 650)
+        self.geometry("1200x820")
+        self.minsize(1050, 720)
 
         self.carnet_service = CarnetService()
         self.photo_path: Path | None = None
@@ -39,7 +39,7 @@ class MainWindow(ctk.CTk):
         container = ctk.CTkFrame(self, corner_radius=16)
         container.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
         container.grid_columnconfigure(0, weight=3)
-        container.grid_columnconfigure(1, weight=2)
+        container.grid_columnconfigure(1, weight=3)
         container.grid_rowconfigure(3, weight=1)
 
         header = ctk.CTkFrame(container, fg_color="transparent")
@@ -120,6 +120,7 @@ class MainWindow(ctk.CTk):
         self._create_text_row(table_frame, 2, "apellidos", "Apellidos")
         self._create_text_row(table_frame, 3, "area", "Area o Rol")
         self._create_text_row(table_frame, 4, "codigo", "Codigo")
+        self._create_document_row(table_frame, 5)
 
         actions = ctk.CTkFrame(container, fg_color="transparent")
         actions.grid(row=4, column=0, padx=(20, 10), pady=(6, 20), sticky="ew")
@@ -169,8 +170,8 @@ class MainWindow(ctk.CTk):
         self.preview_label = ctk.CTkLabel(
             preview_frame,
             text="Sin vista previa",
-            width=280,
-            height=390,
+            width=410,
+            height=640,
             corner_radius=10,
         )
         self.preview_label.grid(row=1, column=0, padx=12, pady=12, sticky="n")
@@ -178,12 +179,39 @@ class MainWindow(ctk.CTk):
     def _create_text_row(self, parent: ctk.CTkFrame, row: int, key: str, label: str) -> None:
         ctk.CTkLabel(parent, text=label).grid(row=row, column=0, padx=8, pady=8, sticky="w")
 
-        value_entry = ctk.CTkEntry(parent, placeholder_text=f"Ingresa {label.lower()}")
+        entry_options = {"placeholder_text": f"Ingresa {label.lower()}"}
+        value_entry = ctk.CTkEntry(parent, **entry_options)
         value_entry.grid(row=row, column=1, padx=8, pady=8, sticky="ew")
         if key in {"nombre", "apellidos", "area"}:
             value_entry.bind("<KeyPress>", self._insert_uppercase, add="+")
             value_entry.bind("<KeyRelease>", self._force_uppercase)
         self._value_entries[key] = value_entry
+        if key == "codigo":
+            value_entry.bind("<FocusOut>", self._format_code_entry, add="+")
+
+    def _format_code_entry(self, _event=None) -> None:
+        entry = self._value_entries["codigo"]
+        formatted = self.carnet_service.formatear_codigo(entry.get())
+        if formatted != entry.get():
+            self._set_entry_value("codigo", formatted)
+
+    def _create_document_row(self, parent: ctk.CTkFrame, row: int) -> None:
+        ctk.CTkLabel(parent, text="Documento").grid(
+            row=row, column=0, padx=8, pady=8, sticky="w"
+        )
+        document_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        document_frame.grid(row=row, column=1, padx=8, pady=8, sticky="ew")
+        document_frame.grid_columnconfigure(1, weight=1)
+
+        self.document_type_selector = ctk.CTkComboBox(
+            document_frame, values=["DNI", "CE"], state="readonly", width=80
+        )
+        self.document_type_selector.set("DNI")
+        self.document_type_selector.grid(row=0, column=0, padx=(0, 8), sticky="w")
+
+        document_entry = ctk.CTkEntry(document_frame, placeholder_text="Ingresa NroDocumento")
+        document_entry.grid(row=0, column=1, sticky="ew")
+        self._value_entries["nro_documento"] = document_entry
 
     @staticmethod
     def _insert_uppercase(event) -> str | None:
@@ -256,7 +284,7 @@ class MainWindow(ctk.CTk):
         except Exception as exc:  # pragma: no cover - seguridad ante archivos invalidos
             messagebox.showerror(
                 "No se pudo cargar el personal",
-                f"El archivo de Excel no pudo ser procesado: {exc}",
+                f"Ubicacion: archivo de personal / lectura del Excel.\nDetalle: {exc}",
             )
 
     def _select_worker(self, selected_label: str) -> None:
@@ -268,9 +296,13 @@ class MainWindow(ctk.CTk):
         self._set_entry_value("apellidos", worker.apellidos)
         self._set_entry_value("area", worker.area)
         self._set_entry_value("codigo", worker.codigo)
+        self.document_type_selector.set(worker.tipo_documento or "DNI")
+        self._set_entry_value("nro_documento", worker.nro_documento)
         self.photo_path = None
-        self.photo_image = worker.foto.copy()
-        self.photo_path_label.configure(text=f"Foto de {worker.nombre_completo}")
+        self.photo_image = worker.foto.copy() if worker.foto is not None else None
+        self.photo_path_label.configure(
+            text=(f"Foto de {worker.nombre_completo}" if worker.foto is not None else "Sin fotografia (opcional)")
+        )
         self._last_carnet_image = None
         self._on_preview()
 
@@ -285,7 +317,7 @@ class MainWindow(ctk.CTk):
         for worker in workers:
             label = worker.nombre_completo
             if label in labels:
-                label = f"{label} ({worker.codigo})"
+                label = f"{label} ({worker.tipo_documento}-{worker.nro_documento})"
             labels[label] = worker
         return labels
 
@@ -311,7 +343,7 @@ class MainWindow(ctk.CTk):
             self._last_carnet_image = carnet
             self._update_preview(carnet)
 
-            default_name = f"{data.codigo.strip()}.png"
+            default_name = f"{data.documento.strip()}.png"
             output_path = filedialog.asksaveasfilename(
                 title="Guardar imagen",
                 defaultextension=".png",
@@ -369,16 +401,16 @@ class MainWindow(ctk.CTk):
             messagebox.showerror("Error inesperado", f"No se pudo generar el PDF: {exc}")
 
     def _collect_carnet_data(self) -> CarnetData:
+        self._format_code_entry()
         photo_source: Path | Image.Image | None = self.photo_image or self.photo_path
-        if photo_source is None:
-            raise ValueError("Debes seleccionar una fotografia antes de generar.")
-
         return CarnetData(
             ruta_foto=photo_source,
             nombre=self._value_entries["nombre"].get().upper(),
             apellidos=self._value_entries["apellidos"].get().upper(),
             area=self._value_entries["area"].get().upper(),
             codigo=self._value_entries["codigo"].get(),
+            tipo_documento=self.document_type_selector.get(),
+            nro_documento=self._value_entries["nro_documento"].get(),
         )
 
     def _build_carnet(self, data: CarnetData) -> Image.Image:
@@ -386,7 +418,7 @@ class MainWindow(ctk.CTk):
 
     def _update_preview(self, image: Image.Image) -> None:
         preview_image = image.copy()
-        preview_image.thumbnail((260, 360), Image.Resampling.LANCZOS)
+        preview_image.thumbnail((390, 615), Image.Resampling.LANCZOS)
         self._preview_ctk_image = ctk.CTkImage(light_image=preview_image, dark_image=preview_image, size=preview_image.size)
         self.preview_label.configure(image=self._preview_ctk_image, text="")
 
