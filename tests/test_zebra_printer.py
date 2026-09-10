@@ -88,6 +88,15 @@ class ZebraPrinterTest(unittest.TestCase):
             spooler.ClosePrinter.assert_called_once()
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).digest(), before)
 
+    def test_driver_startdoc_without_job_id_is_a_valid_single_job(self):
+        with ExitStack() as stack:
+            _, _, dc, _, _ = self.mocked_driver(stack)
+            dc.StartDoc.return_value = None
+            self.assertIsNone(self.service.print_pdf(self.path))
+            dc.StartDoc.assert_called_once()
+            self.assertEqual(dc.StartPage.call_count, 2)
+            dc.EndDoc.assert_called_once()
+
     def test_uses_global_only_when_user_preferences_absent(self):
         with ExitStack() as stack:
             spooler, create_dc, *_ = self.mocked_driver(stack)

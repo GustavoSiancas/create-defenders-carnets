@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Generacion de Carnet de Trabajadores"
-#define MyAppVersion "1.06"
+#define MyAppVersion "1.07"
 #define MyAppPublisher "Generacion de Carnet de Trabajadores"
 #define MyAppExeName "Generacion_Carnet_Trabajadores.exe"
 
@@ -14,7 +14,7 @@ AppId={{6B7F44E7-D623-4AD6-8920-5645BC56BBFC}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.0.6.0
+VersionInfoVersion=1.0.7.0
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 VersionInfoDescription=Instalador de {#MyAppName}

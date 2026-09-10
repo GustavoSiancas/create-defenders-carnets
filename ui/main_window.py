@@ -584,7 +584,8 @@ class MainWindow(ctk.CTk):
         def send():
             try:
                 job_id = ZebraPrinterService().print_pdf(temporary_path)
-                self._print_results.put((True, f"Trabajo {job_id} enviado a Zebra."))
+                message = f"Trabajo {job_id} enviado a Zebra." if job_id is not None else "Trabajo enviado a Zebra."
+                self._print_results.put((True, message))
             except Exception as exc:
                 self._print_results.put((False, str(exc)))
             finally:

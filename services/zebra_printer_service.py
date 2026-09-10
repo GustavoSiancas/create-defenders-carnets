@@ -200,8 +200,8 @@ class ZebraPrinterService:
         if lines <= 0:
             raise ZebraPrintError(f"El driver no acepto la imagen (GDI={ctypes.get_last_error()}).")
 
-    def print_pdf(self, pdf_path: str | Path) -> int:
-        """Devuelve el ID del unico trabajo enviado; no confirma salida fisica."""
+    def print_pdf(self, pdf_path: str | Path) -> int | None:
+        """Devuelve el ID del trabajo si el driver lo expone; no confirma salida fisica."""
         handle = hdc = dc = None
         started = False
         job_id = None
@@ -222,9 +222,10 @@ class ZebraPrinterService:
                 dc = win32ui.CreateDCFromHandle(hdc)
                 geometry = self._geometry(dc, page_size)
                 images = self._render(document, geometry)  # Ambas caras listas antes de StartDoc.
-                job_id = dc.StartDoc(f"Carnet - {path.stem}")
-                if job_id <= 0:
-                    raise ZebraPrintError("Windows no pudo iniciar el trabajo de impresion.")
+                # Algunos drivers, incluido el de Zebra, devuelven None aunque
+                # StartDoc haya iniciado correctamente el trabajo.
+                start_result = dc.StartDoc(f"Carnet - {path.stem}")
+                job_id = start_result if isinstance(start_result, int) else None
                 started = True
                 for number, image in enumerate(images, start=1):
                     dc.StartPage()
@@ -233,7 +234,7 @@ class ZebraPrinterService:
                     self.logger.info("Trabajo=%s pagina=%s enviada RGB %sx%s", job_id, number, image.width, image.height)
                 dc.EndDoc()
                 started = False
-                self.logger.info("Trabajo=%s enviado a la cola; salida fisica no verificada", job_id)
+                self.logger.info("Trabajo=%s enviado a la cola; salida fisica no verificada", job_id or "no disponible")
                 return job_id
         except Exception as exc:
             if started:
