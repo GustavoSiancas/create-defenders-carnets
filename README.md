@@ -27,3 +27,14 @@ El boton amarillo GUARDAR persiste todos los campos del formulario y la foto.
 Actualiza la persona seleccionada, incluso si cambia su documento, y conserva
 la seleccion. Sin seleccion, crea una persona nueva. Los documentos duplicados
 se rechazan sin sobrescribir a otra persona.
+
+Compilacion de Windows (PowerShell, desde la raiz del proyecto):
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm app.spec
+& 'C:\Program Files\Inno Setup 7\ISCC.exe' install\s.iss
+```
+Ejecutable: dist/app.exe.
+Instalador: install/Output/Generacion_Carnet_Trabajadores_Setup.exe.
+El instalador 1.1 conserva el AppId anterior para actualizar la misma aplicacion.
+La base de datos de personal no se incluye en el instalador ni se elimina al desinstalar.

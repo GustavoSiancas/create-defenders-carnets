@@ -5,6 +5,7 @@ import customtkinter as ctk
 from PIL import Image, ImageDraw
 
 from ui.worker_search import WorkerSearch
+from ui.preview_label import PreviewLabel
 
 from models.constants import APP_ICON_PATH, BACK_IMAGE_PATH
 from services.carnet_service import CarnetData, CarnetService
@@ -210,7 +211,7 @@ class MainWindow(ctk.CTk):
         )
         preview_title.grid(row=0, column=0, padx=12, pady=(12, 8), sticky="w")
 
-        self.preview_label = ctk.CTkLabel(
+        self.preview_label = PreviewLabel(
             preview_frame,
             text="Sin vista previa",
             width=410,

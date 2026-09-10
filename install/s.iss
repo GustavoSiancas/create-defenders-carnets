@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Generacion de Carnet de Trabajadores"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "Generacion de Carnet de Trabajadores"
 #define MyAppExeName "app.exe"
 
@@ -14,7 +14,7 @@ AppId={{6B7F44E7-D623-4AD6-8920-5645BC56BBFC}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.0.0.0
+VersionInfoVersion=1.1.1.0
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 VersionInfoDescription=Instalador de {#MyAppName}
@@ -32,6 +32,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; Uncomment the following line to use a 64-bit installer.
 ;SetupArchitecture=x64
 DisableProgramGroupPage=yes
+CloseApplications=yes
+CloseApplicationsFilter={#MyAppExeName}
+RestartApplications=no
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir={#SourcePath}\Output
@@ -52,8 +55,8 @@ Source: "{#SourcePath}\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignore
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
