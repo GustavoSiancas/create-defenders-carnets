@@ -15,7 +15,7 @@ class PersonalSaveConfirmationTest(unittest.TestCase):
             _personal_by_label={"Ana": original},
             _collect_carnet_data=Mock(return_value=CarnetData(None, "ANA", "LOPEZ", "AREA", "000002", "CE", "002")),
             personal_repository=Mock(), photo_image=None, photo_path=None,
-            _refresh_personal=Mock(), _last_carnet_image=None,
+            _refresh_personal=Mock(), _last_carnet_image=None, _update_print_availability=Mock(),
         )
 
     @patch("ui.main_window.messagebox")

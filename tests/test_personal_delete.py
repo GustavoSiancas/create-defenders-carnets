@@ -31,7 +31,7 @@ class PersonalDeleteTest(unittest.TestCase):
             _personal_by_label={"Ana": worker}, _value_entries={"nombre": Mock()},
             document_type_selector=Mock(), preview_label=Mock(), photo_path_label=Mock(),
             _refresh_personal=Mock(), photo_path="photo.png", photo_image=Mock(),
-            _last_carnet_image=Mock(), _preview_ctk_image=Mock(),
+            _last_carnet_image=Mock(), _preview_ctk_image=Mock(), _update_print_availability=Mock(),
         )
 
     @patch("ui.main_window.messagebox")

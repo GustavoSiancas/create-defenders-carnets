@@ -2,13 +2,14 @@ from pathlib import Path
 from io import BytesIO
 
 from PIL import Image
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 
 class PdfService:
-    PAGE_W, PAGE_H = A4
+    # Carnet de 85.60 x 53.98 mm en orientacion vertical.
+    PAGE_W, PAGE_H = 53.98 * mm, 85.60 * mm
 
     @classmethod
     def generate_pdf(
@@ -25,7 +26,8 @@ class PdfService:
             filename = "carnet.pdf"
 
         output_path = output_folder_path / filename
-        pdf = canvas.Canvas(str(output_path), pagesize=A4)
+        pdf = canvas.Canvas(str(output_path), pagesize=(cls.PAGE_W, cls.PAGE_H))
+        pdf.setViewerPreference("PrintScaling", "None")
 
         cls._add_page(pdf, front_image)
         cls._add_page(pdf, Path(back_image_path))
@@ -41,24 +43,16 @@ class PdfService:
             with Image.open(image_source) as source:
                 img = source.convert("RGBA")
 
-        iw, ih = img.size
-        scale = min(cls.PAGE_W / iw, cls.PAGE_H / ih)
-        new_w = iw * scale
-        new_h = ih * scale
-
-        x = 0
-        y = 0
-
         image_stream = BytesIO()
         img.save(image_stream, format="PNG")
         image_stream.seek(0)
         pdf.drawImage(
             ImageReader(image_stream),
-            x,
-            y,
-            width=new_w,
-            height=new_h,
-            preserveAspectRatio=True,
+            0,
+            0,
+            width=cls.PAGE_W,
+            height=cls.PAGE_H,
+            preserveAspectRatio=False,
             mask="auto",
         )
         pdf.showPage()

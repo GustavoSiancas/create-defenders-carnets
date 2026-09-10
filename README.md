@@ -34,7 +34,11 @@ Compilacion de Windows (PowerShell, desde la raiz del proyecto):
 .\.venv\Scripts\python.exe -m PyInstaller --noconfirm app.spec
 & 'C:\Program Files\Inno Setup 7\ISCC.exe' install\s.iss
 ```
-Ejecutable: dist/app.exe.
+Ejecutable: dist/Generacion_Carnet_Trabajadores.exe.
 Instalador: install/Output/Generacion_Carnet_Trabajadores_Setup.exe.
 El instalador 1.1 conserva el AppId anterior para actualizar la misma aplicacion.
 La base de datos de personal no se incluye en el instalador ni se elimina al desinstalar.
+
+El PDF tiene dos paginas de 53.98 mm de ancho por 85.60 mm de alto (carnet vertical):
+frente y reverso a pagina completa, sin hoja A4 ni margenes agregados.
+Imprimir en tamano real / 100 %, con papel de carnet de esas dimensiones.

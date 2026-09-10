@@ -1,4 +1,8 @@
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
+import tempfile
+from uuid import uuid4
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
@@ -12,8 +16,8 @@ from services.carnet_service import CarnetData, CarnetService
 from services.personal_service import PersonalData, PersonalService
 from services.personal_repository import PersonalRepository
 from services.personal_export_service import PersonalExportService
-from services.pdf_front_image_service import PdfFrontImageService
 from services.pdf_service import PdfService
+from services.zebra_printer_service import ZebraPrinterService
 
 
 class MainWindow(ctk.CTk):
@@ -33,6 +37,8 @@ class MainWindow(ctk.CTk):
         self._preview_ctk_image: ctk.CTkImage | None = None
         self._personal_by_label: dict[str, PersonalData] = {}
         self._selected_document: tuple[str, str] | None = None
+        self._print_pending = False
+        self._print_results = Queue()
 
         self._value_entries: dict[str, ctk.CTkEntry] = {}
 
@@ -82,12 +88,21 @@ class MainWindow(ctk.CTk):
         draw.line((8, 18, 20, 32), fill="white", width=4)
         draw.line((20, 18, 8, 32), fill="white", width=4)
         self._excel_icon = ctk.CTkImage(light_image=excel_icon, dark_image=excel_icon, size=(24, 24))
+        top_actions = ctk.CTkFrame(container, fg_color="transparent")
+        top_actions.grid(row=0, column=1, padx=20, pady=(20, 12), sticky="ew")
+        top_actions.grid_columnconfigure(0, weight=1)
         export_button = ctk.CTkButton(
-            container, text="EXPORTAR DATA", image=self._excel_icon,
+            top_actions, text="EXPORTAR DATA", image=self._excel_icon,
             command=self._export_personal, fg_color="#217346", hover_color="#185C37",
             text_color="white", height=38,
         )
-        export_button.grid(row=0, column=1, padx=20, pady=(20, 12), sticky="e")
+        export_button.grid(row=0, column=0, padx=(0, 8), sticky="e")
+        self.print_button = ctk.CTkButton(
+            top_actions, text="IMPRIMIR", command=self._on_print_pdf, height=38, state="disabled",
+        )
+        self.print_button.grid(row=0, column=1, sticky="e")
+        self.print_status = ctk.CTkLabel(top_actions, text="", anchor="e", wraplength=380)
+        self.print_status.grid(row=1, column=0, columnspan=2, sticky="ew")
 
         personal_frame = ctk.CTkFrame(container)
         personal_frame.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="ew")
@@ -219,6 +234,7 @@ class MainWindow(ctk.CTk):
             corner_radius=10,
         )
         self.preview_label.grid(row=1, column=0, padx=12, pady=12, sticky="n")
+        self._update_print_availability()
 
     def _create_text_row(self, parent: ctk.CTkFrame, row: int, key: str, label: str) -> None:
         ctk.CTkLabel(parent, text=label).grid(row=row, column=0, padx=8, pady=8, sticky="w")
@@ -230,6 +246,7 @@ class MainWindow(ctk.CTk):
             value_entry.bind("<KeyPress>", self._insert_uppercase, add="+")
             value_entry.bind("<KeyRelease>", self._force_uppercase)
         self._value_entries[key] = value_entry
+        value_entry.bind("<KeyRelease>", self._update_print_availability, add="+")
         if key == "codigo":
             value_entry.bind("<FocusOut>", self._format_code_entry, add="+")
 
@@ -238,6 +255,7 @@ class MainWindow(ctk.CTk):
         formatted = self.carnet_service.formatear_codigo(entry.get())
         if formatted != entry.get():
             self._set_entry_value("codigo", formatted)
+        self._update_print_availability()
 
     def _create_document_row(self, parent: ctk.CTkFrame, row: int) -> None:
         ctk.CTkLabel(parent, text="Documento").grid(
@@ -248,7 +266,8 @@ class MainWindow(ctk.CTk):
         document_frame.grid_columnconfigure(1, weight=1)
 
         self.document_type_selector = ctk.CTkComboBox(
-            document_frame, values=["DNI", "CE"], state="readonly", width=80
+            document_frame, values=["DNI", "CE"], state="readonly", width=80,
+            command=lambda _value: self._update_print_availability(),
         )
         self.document_type_selector.set("DNI")
         self.document_type_selector.grid(row=0, column=0, padx=(0, 8), sticky="w")
@@ -256,6 +275,7 @@ class MainWindow(ctk.CTk):
         document_entry = ctk.CTkEntry(document_frame, placeholder_text="Ingresa NroDocumento")
         document_entry.grid(row=0, column=1, sticky="ew")
         self._value_entries["nro_documento"] = document_entry
+        document_entry.bind("<KeyRelease>", self._update_print_availability, add="+")
 
     @staticmethod
     def _insert_uppercase(event) -> str | None:
@@ -304,6 +324,7 @@ class MainWindow(ctk.CTk):
         self.photo_path = Path(selected)
         self.photo_image = None
         self.photo_path_label.configure(text=str(self.photo_path))
+        self._update_print_availability()
 
     def _export_personal(self) -> None:
         try:
@@ -396,6 +417,7 @@ class MainWindow(ctk.CTk):
         )
         self._last_carnet_image = None
         self._on_preview()
+        self._update_print_availability()
 
     def _set_entry_value(self, key: str, value: str) -> None:
         entry = self._value_entries[key]
@@ -455,6 +477,7 @@ class MainWindow(ctk.CTk):
         self.preview_label.configure(image=None, text="Sin vista previa")
         self._preview_ctk_image = None
         self.photo_path_label.configure(text="Ninguna fotografia seleccionada")
+        self._update_print_availability()
         try:
             self._refresh_personal()
         except Exception as exc:
@@ -506,12 +529,82 @@ class MainWindow(ctk.CTk):
         self.photo_image = photo
         self.photo_path = None
         self._last_carnet_image = None
+        self._update_print_availability()
         try:
             self._refresh_personal()
         except Exception as exc:
             messagebox.showwarning("Datos guardados", f"Se guardaron los datos, pero no se pudo actualizar la lista: {exc}")
             return
         messagebox.showinfo("Datos guardados", f"Se guardaron todos los datos de {worker.nombre_completo}, incluida su fotografia.")
+
+    def _can_print_current(self) -> bool:
+        required = ("nombre", "apellidos", "area", "codigo", "nro_documento")
+        return (
+            all(self._value_entries[key].get().strip() for key in required)
+            and self.document_type_selector.get().strip() in {"DNI", "CE"}
+            and (self.photo_path is not None or self.photo_image is not None)
+        )
+
+    def _update_print_availability(self, _event=None) -> None:
+        if self._print_pending:
+            return
+        enabled = self._can_print_current()
+        self.print_button.configure(state="normal" if enabled else "disabled")
+        if not enabled:
+            self.print_status.configure(
+                text="Completa foto, nombres, apellidos, área, código y documento para imprimir.",
+                text_color=("gray30", "gray70"),
+            )
+
+    def _on_print_pdf(self) -> None:
+        if self._print_pending:
+            return
+        if not self._can_print_current():
+            self._update_print_availability()
+            return
+        try:
+            data = self._collect_carnet_data()
+            self._last_carnet_image = self._build_carnet(data)
+            self._update_preview(self._last_carnet_image)
+            temporary_path = Path(tempfile.gettempdir()) / f"carnet-zebra-{uuid4().hex}.pdf"
+            PdfService.generate_pdf(
+                front_image=self._last_carnet_image,
+                back_image_path=self._resolve_back_image_path(),
+                output_folder=temporary_path.parent,
+                filename=temporary_path.name,
+            )
+        except Exception as exc:
+            self.print_status.configure(text=f"No se pudo preparar el carnet: {exc}", text_color="#DC2626")
+            return
+
+        self._print_pending = True
+        self.print_button.configure(state="disabled")
+        self.print_status.configure(text="Generando trabajo y enviando a la Zebra...", text_color=("gray30", "gray70"))
+
+        def send():
+            try:
+                job_id = ZebraPrinterService().print_pdf(temporary_path)
+                self._print_results.put((True, f"Trabajo {job_id} enviado a Zebra."))
+            except Exception as exc:
+                self._print_results.put((False, str(exc)))
+            finally:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+        Thread(target=send, daemon=False).start()
+        self.after(150, self._check_print_result)
+
+    def _check_print_result(self) -> None:
+        try:
+            success, message = self._print_results.get_nowait()
+        except Empty:
+            self.after(150, self._check_print_result)
+            return
+        self._print_pending = False
+        self._update_print_availability()
+        self.print_status.configure(text=message, text_color=("#217346" if success else "#DC2626"))
 
     def _on_generate_pdf(self) -> None:
         try:
@@ -529,10 +622,9 @@ class MainWindow(ctk.CTk):
             if not output_path:
                 return
 
-            pdf_front_image = PdfFrontImageService.preparar(self._last_carnet_image)
             back_image_path = self._resolve_back_image_path()
             PdfService.generate_pdf(
-                front_image=pdf_front_image,
+                front_image=self._last_carnet_image,
                 back_image_path=back_image_path,
                 output_folder=Path(output_path).parent,
                 filename=Path(output_path).name,
