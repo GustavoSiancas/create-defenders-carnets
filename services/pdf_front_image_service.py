@@ -1,5 +1,7 @@
 from PIL import Image
 
+from models.constants import BARCODE_AREA
+
 
 class PdfFrontImageService:
     """Prepara en memoria el frente que se enviara al PDF."""
@@ -18,5 +20,15 @@ class PdfFrontImageService:
             (x2 - x1, y2 - y1),
             Image.Resampling.LANCZOS,
         )
+        # Conserva bordes negros y blancos en las barras al adaptar el frente.
+        bx1, by1, bx2, by2 = BARCODE_AREA
+        scale_x = (x2 - x1) / image.width
+        scale_y = (y2 - y1) / image.height
+        target = (round(bx1 * scale_x), round(by1 * scale_y),
+                  round(bx2 * scale_x), round(by2 * scale_y))
+        barcode = image.crop(BARCODE_AREA).resize(
+            (target[2] - target[0], target[3] - target[1]), Image.Resampling.NEAREST
+        )
+        prepared_image.paste(barcode, target[:2])
         canvas.paste(prepared_image, (x1, y1), prepared_image)
         return canvas

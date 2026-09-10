@@ -25,11 +25,10 @@ class PersonalData:
 
 class PersonalService:
     REQUIRED_HEADERS = {
-        "nombres": "Nombres",
+        "nombres": "Nombre",
         "apellidos": "Apellidos",
-        "area": "Cargo/ Area",
-        "codigo": "Codigo",
-        "tipo_documento": "Tipo de Documento",
+        "area": "Cargo",
+        "tipo_documento": "TipoDocumento",
         "nro_documento": "NroDocumento",
         "foto": "Foto",
     }
@@ -46,59 +45,80 @@ class PersonalService:
             raise ValueError(
                 f"Archivo '{path.name}', estructura del Excel: no se pudo abrir. Detalle: {exc}"
             ) from exc
-        worksheet = workbook.active
-        columns = cls._resolve_columns(worksheet)
         try:
-            photos = cls._read_cell_photos(path)
-        except Exception as exc:
-            raise ValueError(
-                f"Hoja '{worksheet.title}', columna Foto: no se pudieron leer las imagenes. Detalle: {exc}"
-            ) from exc
-        workers: list[PersonalData] = []
-
-        for row in range(2, worksheet.max_row + 1):
+            worksheet = workbook.active
+            columns = cls._resolve_columns(worksheet)
             try:
-                nombres = cls._cell_text(worksheet.cell(row, columns["nombres"]).value)
-                apellidos = cls._cell_text(worksheet.cell(row, columns["apellidos"]).value)
-                area = cls._cell_text(worksheet.cell(row, columns["area"]).value)
-                codigo = cls._code_text(worksheet.cell(row, columns["codigo"]).value)
-                tipo_documento = cls._cell_text(worksheet.cell(row, columns["tipo_documento"]).value).upper()
-                nro_documento = cls._code_text(worksheet.cell(row, columns["nro_documento"]).value)
-                if not any((nombres, apellidos, area, codigo, tipo_documento, nro_documento)):
-                    continue
-
-                if tipo_documento and tipo_documento not in {"DNI", "CE"}:
-                    cell = worksheet.cell(row, columns["tipo_documento"]).coordinate
-                    raise ValueError(
-                        f"Fila {row}, celda {cell} (Tipo de Documento): "
-                        f"se encontro '{tipo_documento}', pero solo se admite DNI o CE."
-                    )
-                codigo = codigo.zfill(6) if codigo.isdigit() else codigo
-
-                photo_cell = worksheet.cell(row, columns["foto"]).coordinate
-                photo = photos.get(photo_cell)
-
-                workers.append(
-                    PersonalData(
-                        nombres=nombres.upper(),
-                        apellidos=apellidos.upper(),
-                        area=area.upper(),
-                        codigo=codigo,
-                        tipo_documento=tipo_documento,
-                        nro_documento=nro_documento,
-                        foto=photo,
-                    )
-                )
-            except ValueError:
-                raise
+                photos = cls._read_cell_photos(path)
+                for drawing in worksheet._images:
+                    anchor = drawing.anchor._from
+                    coordinate = worksheet.cell(anchor.row + 1, anchor.col + 1).coordinate
+                    with Image.open(BytesIO(drawing._data())) as source:
+                        photos[coordinate] = source.convert("RGBA").copy()
             except Exception as exc:
                 raise ValueError(
-                    f"Fila {row}, lectura de datos del abogado: {exc}"
+                    f"Hoja '{worksheet.title}', columna Foto: no se pudieron leer las imagenes. Detalle: {exc}"
                 ) from exc
+            workers: list[PersonalData] = []
 
-        if not workers:
-            raise ValueError("El archivo no contiene trabajadores para cargar.")
-        return workers
+            for row in range(2, worksheet.max_row + 1):
+                try:
+                    nombres = cls._cell_text(worksheet.cell(row, columns["nombres"]).value)
+                    apellidos = cls._cell_text(worksheet.cell(row, columns["apellidos"]).value)
+                    area = cls._cell_text(worksheet.cell(row, columns["area"]).value)
+                    codigo = cls._code_text(worksheet.cell(row, columns["codigo"]).value) if "codigo" in columns else ""
+                    tipo_documento = cls._cell_text(worksheet.cell(row, columns["tipo_documento"]).value).upper()
+                    nro_documento = cls._code_text(worksheet.cell(row, columns["nro_documento"]).value)
+                    if not any((nombres, apellidos, area, codigo, tipo_documento, nro_documento)):
+                        continue
+
+                    if not tipo_documento or not nro_documento:
+                        raise ValueError(f"Fila {row}: TipoDocumento y NroDocumento son obligatorios.")
+
+                    if tipo_documento and tipo_documento not in {"DNI", "CE"}:
+                        cell = worksheet.cell(row, columns["tipo_documento"]).coordinate
+                        raise ValueError(
+                            f"Fila {row}, celda {cell} (Tipo de Documento): "
+                            f"se encontro '{tipo_documento}', pero solo se admite DNI o CE."
+                        )
+                    codigo = codigo.zfill(6) if codigo.isdigit() else codigo
+
+                    photo_cell = worksheet.cell(row, columns["foto"]).coordinate
+                    photo = photos.get(photo_cell)
+                    photo_value = worksheet.cell(row, columns["foto"]).value
+                    if photo is None and photo_value:
+                        photo_path = Path(str(photo_value).strip())
+                        if not photo_path.is_absolute():
+                            photo_path = path.parent / photo_path
+                        try:
+                            with Image.open(photo_path) as source:
+                                photo = source.convert("RGBA").copy()
+                        except (OSError, ValueError) as exc:
+                            raise ValueError(f"Fila {row}, Foto: no se pudo leer '{photo_value}'.") from exc
+
+                    workers.append(
+                        PersonalData(
+                            nombres=nombres.upper(),
+                            apellidos=apellidos.upper(),
+                            area=area.upper(),
+                            codigo=codigo,
+                            tipo_documento=tipo_documento,
+                            nro_documento=nro_documento,
+                            foto=photo,
+                        )
+                    )
+                except ValueError:
+                    raise
+                except Exception as exc:
+                    raise ValueError(
+                        f"Fila {row}, lectura de datos del trabajador: {exc}"
+                    ) from exc
+
+            if not workers:
+                raise ValueError("El archivo no contiene trabajadores para cargar.")
+            return workers
+        finally:
+            workbook.close()
 
     @classmethod
     def _resolve_columns(cls, worksheet) -> dict[str, int]:
@@ -108,13 +128,22 @@ class PersonalService:
             if cell.value is not None
         }
         columns: dict[str, int] = {}
+        aliases = {
+            "nombres": ["Nombre", "Nombres"],
+            "area": ["Cargo", "Cargo/ Area", "Area"],
+            "tipo_documento": ["TipoDocumento", "Tipo de Documento"],
+        }
         for key, expected in cls.REQUIRED_HEADERS.items():
-            normalized = cls._normalize_header(expected)
-            if normalized not in normalized_headers:
+            matches = [normalized_headers[cls._normalize_header(name)]
+                       for name in aliases.get(key, [expected])
+                       if cls._normalize_header(name) in normalized_headers]
+            if not matches:
                 raise ValueError(
                     f"Fila 1, encabezados: falta la columna obligatoria '{expected}'."
                 )
-            columns[key] = normalized_headers[normalized]
+            columns[key] = matches[0]
+        if "codigo" in normalized_headers:
+            columns["codigo"] = normalized_headers["codigo"]
         return columns
 
     @staticmethod

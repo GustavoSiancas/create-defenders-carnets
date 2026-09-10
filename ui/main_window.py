@@ -2,11 +2,15 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageDraw
+
+from ui.worker_search import WorkerSearch
 
 from models.constants import APP_ICON_PATH, BACK_IMAGE_PATH
 from services.carnet_service import CarnetData, CarnetService
 from services.personal_service import PersonalData, PersonalService
+from services.personal_repository import PersonalRepository
+from services.personal_export_service import PersonalExportService
 from services.pdf_front_image_service import PdfFrontImageService
 from services.pdf_service import PdfService
 
@@ -27,10 +31,17 @@ class MainWindow(ctk.CTk):
         self._last_carnet_image: Image.Image | None = None
         self._preview_ctk_image: ctk.CTkImage | None = None
         self._personal_by_label: dict[str, PersonalData] = {}
+        self._selected_document: tuple[str, str] | None = None
 
         self._value_entries: dict[str, ctk.CTkEntry] = {}
 
         self._build_layout()
+        self.personal_repository: PersonalRepository | None = None
+        try:
+            self.personal_repository = PersonalRepository()
+            self._refresh_personal()
+        except Exception as exc:
+            messagebox.showerror("Base de datos", f"No se pudo abrir la base de datos de personal: {exc}")
 
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -55,11 +66,27 @@ class MainWindow(ctk.CTk):
 
         subtitle = ctk.CTkLabel(
             header,
-            text="Carga una foto, completa los datos y genera el carnet en PNG.",
+            text="Completa los datos, guarda la persona y genera su carnet en PDF.",
             text_color=("gray30", "gray70"),
             font=ctk.CTkFont(size=14),
         )
         subtitle.grid(row=1, column=0, sticky="w", pady=(4, 0))
+
+        excel_icon = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(excel_icon)
+        draw.rounded_rectangle((14, 4, 45, 44), radius=3, fill="white")
+        for y in (14, 24, 34):
+            draw.line((29, y, 41, y), fill="#217346", width=2)
+        draw.rectangle((1, 12, 27, 38), fill="#185C37")
+        draw.line((8, 18, 20, 32), fill="white", width=4)
+        draw.line((20, 18, 8, 32), fill="white", width=4)
+        self._excel_icon = ctk.CTkImage(light_image=excel_icon, dark_image=excel_icon, size=(24, 24))
+        export_button = ctk.CTkButton(
+            container, text="EXPORTAR DATA", image=self._excel_icon,
+            command=self._export_personal, fg_color="#217346", hover_color="#185C37",
+            text_color="white", height=38,
+        )
+        export_button.grid(row=0, column=1, padx=20, pady=(20, 12), sticky="e")
 
         personal_frame = ctk.CTkFrame(container)
         personal_frame.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="ew")
@@ -67,16 +94,17 @@ class MainWindow(ctk.CTk):
 
         load_personal_button = ctk.CTkButton(
             personal_frame,
-            text="CARGAR PERSONAL",
+            text="CARGAR AL SISTEMA",
             command=self._load_personal,
             width=190,
         )
         load_personal_button.grid(row=0, column=0, padx=12, pady=12, sticky="w")
 
-        self.personal_selector = ctk.CTkComboBox(
+        self.personal_selector = WorkerSearch(
             personal_frame,
-            values=["Carga un archivo de personal"],
+            values=["Sin personal guardado"],
             command=self._select_worker,
+            search=self._search_personal,
             state="disabled",
         )
         self.personal_selector.grid(row=0, column=1, padx=12, pady=12, sticky="ew")
@@ -116,6 +144,18 @@ class MainWindow(ctk.CTk):
                 font=ctk.CTkFont(size=14, weight="bold"),
             ).grid(row=0, column=col, padx=8, pady=(8, 12), sticky="w")
 
+        delete_button = ctk.CTkButton(
+            table_frame,
+            text="X",
+            command=self._on_delete,
+            width=36,
+            fg_color="#DC2626",
+            hover_color="#B91C1C",
+            text_color="white",
+            font=ctk.CTkFont(size=16, weight="bold"),
+        )
+        delete_button.grid(row=0, column=1, padx=8, pady=(8, 12), sticky="e")
+
         self._create_text_row(table_frame, 1, "nombre", "Nombres")
         self._create_text_row(table_frame, 2, "apellidos", "Apellidos")
         self._create_text_row(table_frame, 3, "area", "Area o Rol")
@@ -137,14 +177,17 @@ class MainWindow(ctk.CTk):
         )
         preview_button.grid(row=0, column=0, padx=(0, 8), sticky="ew")
 
-        image_button = ctk.CTkButton(
+        save_button = ctk.CTkButton(
             actions,
-            text="GENERAR IMAGEN",
-            command=self._on_generate_image,
+            text="GUARDAR",
+            command=self._on_save,
+            fg_color="#FACC15",
+            hover_color="#EAB308",
+            text_color="#1A1A1A",
             height=46,
             font=ctk.CTkFont(size=16, weight="bold"),
         )
-        image_button.grid(row=0, column=1, padx=8, sticky="ew")
+        save_button.grid(row=0, column=1, padx=8, sticky="ew")
 
         pdf_button = ctk.CTkButton(
             actions,
@@ -261,6 +304,26 @@ class MainWindow(ctk.CTk):
         self.photo_image = None
         self.photo_path_label.configure(text=str(self.photo_path))
 
+    def _export_personal(self) -> None:
+        try:
+            if self.personal_repository is None:
+                raise ValueError("No se pudo acceder a la base de datos de personal.")
+            workers = self.personal_repository.listar()
+            if not workers:
+                messagebox.showinfo("Exportar data", "No hay personal guardado para exportar.", parent=self)
+                return
+            output_path = filedialog.asksaveasfilename(
+                title="Exportar personal a Excel", defaultextension=".xlsx",
+                initialfile="personal.xlsx", filetypes=[("Excel", "*.xlsx")], parent=self,
+            )
+            if not output_path:
+                return
+            PersonalExportService.exportar(workers, output_path)
+        except Exception as exc:
+            messagebox.showerror("No se pudo exportar", str(exc), parent=self)
+            return
+        messagebox.showinfo("Datos exportados", f"Se exportaron {len(workers)} personas con sus fotografias a:\n{output_path}", parent=self)
+
     def _load_personal(self) -> None:
         selected = filedialog.askopenfilename(
             title="Seleccionar archivo de personal",
@@ -270,28 +333,55 @@ class MainWindow(ctk.CTk):
             return
 
         try:
+            if self.personal_repository is None:
+                self.personal_repository = PersonalRepository()
             workers = PersonalService.cargar(selected)
-            self._personal_by_label = self._build_worker_labels(workers)
-            labels = list(self._personal_by_label)
-            self.personal_selector.configure(values=labels, state="readonly")
-            self.personal_selector.set("Selecciona una persona")
+            inserted, duplicates = self.personal_repository.guardar(workers)
+            self._refresh_personal()
             messagebox.showinfo(
                 "Personal cargado",
-                f"Se cargaron {len(workers)} trabajadores correctamente.",
+                f"Guardados en la base de datos: {inserted}.\n"
+                f"Omitidos por TipoDocumento y NroDocumento duplicados: {duplicates}.",
             )
         except (ValueError, FileNotFoundError) as exc:
             messagebox.showerror("No se pudo cargar el personal", str(exc))
         except Exception as exc:  # pragma: no cover - seguridad ante archivos invalidos
             messagebox.showerror(
                 "No se pudo cargar el personal",
-                f"Ubicacion: archivo de personal / lectura del Excel.\nDetalle: {exc}",
+                f"Error al importar el Excel o acceder a la base de datos.\nDetalle: {exc}",
             )
+
+    def _search_personal(self, query: str) -> list[str]:
+        if self.personal_repository is None:
+            return []
+        try:
+            matches = self._build_worker_labels(self.personal_repository.listar(query))
+        except Exception as exc:
+            messagebox.showerror("No se pudo buscar", str(exc), parent=self)
+            return []
+        self._personal_by_label.update(matches)
+        return list(matches)
+
+    def _refresh_personal(self) -> None:
+        workers = self.personal_repository.listar()
+        self._personal_by_label = self._build_worker_labels(workers)
+        labels = list(self._personal_by_label)
+        self.personal_selector.configure(
+            values=labels or ["Sin personal guardado"],
+            state="readonly" if labels else "disabled",
+        )
+        self.personal_selector.set("")
+        for label, worker in self._personal_by_label.items():
+            if (worker.tipo_documento, worker.nro_documento) == self._selected_document:
+                self.personal_selector.set(label)
+                break
 
     def _select_worker(self, selected_label: str) -> None:
         worker = self._personal_by_label.get(selected_label)
         if worker is None:
             return
 
+        self._selected_document = (worker.tipo_documento, worker.nro_documento)
         self._set_entry_value("nombre", worker.nombres)
         self._set_entry_value("apellidos", worker.apellidos)
         self._set_entry_value("area", worker.area)
@@ -315,9 +405,7 @@ class MainWindow(ctk.CTk):
     def _build_worker_labels(workers: list[PersonalData]) -> dict[str, PersonalData]:
         labels: dict[str, PersonalData] = {}
         for worker in workers:
-            label = worker.nombre_completo
-            if label in labels:
-                label = f"{label} ({worker.tipo_documento}-{worker.nro_documento})"
+            label = f"{worker.nombre_completo} ({worker.tipo_documento}-{worker.nro_documento})"
             labels[label] = worker
         return labels
 
@@ -336,36 +424,93 @@ class MainWindow(ctk.CTk):
         except Exception as exc:  # pragma: no cover - seguridad ante errores inesperados
             messagebox.showerror("Error inesperado", f"No se pudo generar la vista previa: {exc}")
 
-    def _on_generate_image(self) -> None:
+    def _on_delete(self) -> None:
+        document = self._selected_document
+        if document is None or self.personal_repository is None:
+            messagebox.showwarning("Selecciona una persona", "Selecciona la persona que quieres eliminar.", parent=self)
+            return
+        worker = next((worker for worker in self._personal_by_label.values()
+                       if (worker.tipo_documento, worker.nro_documento) == document), None)
+        name = worker.nombre_completo if worker is not None else "Persona seleccionada"
+        if not messagebox.askyesno(
+            "Eliminar persona",
+            f"¿Estás seguro que quieres eliminarlo?\n\n{name} ({document[0]}-{document[1]})",
+            icon="warning", default="no", parent=self,
+        ):
+            return
+        try:
+            self.personal_repository.eliminar(document)
+        except Exception as exc:
+            messagebox.showerror("No se pudo eliminar", str(exc), parent=self)
+            return
+
+        self._selected_document = None
+        for entry in self._value_entries.values():
+            entry.delete(0, "end")
+        self.document_type_selector.set("DNI")
+        self.photo_path = None
+        self.photo_image = None
+        self._last_carnet_image = None
+        self.preview_label.configure(image=None, text="Sin vista previa")
+        self._preview_ctk_image = None
+        self.photo_path_label.configure(text="Ninguna fotografia seleccionada")
+        try:
+            self._refresh_personal()
+        except Exception as exc:
+            self._personal_by_label = {}
+            self.personal_selector.configure(values=["Lista no disponible"], state="disabled")
+            self.personal_selector.set("Lista no disponible")
+            messagebox.showwarning("Persona eliminada", f"Se elimino la persona, pero no se pudo actualizar la lista: {exc}", parent=self)
+            return
+        messagebox.showinfo("Persona eliminada", f"Se elimino a {name}.", parent=self)
+
+    def _on_save(self) -> None:
+        if self._selected_document is not None:
+            original = next((worker for worker in self._personal_by_label.values()
+                             if (worker.tipo_documento, worker.nro_documento) == self._selected_document), None)
+            name = original.nombre_completo if original is not None else "Persona seleccionada"
+            tipo, numero = self._selected_document
+            if not messagebox.askyesno(
+                "Modificar persona",
+                f"¿Estás seguro de que quieres modificarlo?\n\n{name} ({tipo}-{numero})",
+                icon="warning", default="no", parent=self,
+            ):
+                return
         try:
             data = self._collect_carnet_data()
-            carnet = self._build_carnet(data)
-            self._last_carnet_image = carnet
-            self._update_preview(carnet)
-
-            default_name = f"{data.documento.strip()}.png"
-            output_path = filedialog.asksaveasfilename(
-                title="Guardar imagen",
-                defaultextension=".png",
-                initialfile=default_name,
-                filetypes=[("PNG", "*.png")],
+            photo = self.photo_image
+            if self.photo_path is not None:
+                with Image.open(self.photo_path) as source:
+                    photo = source.convert("RGBA").copy()
+            worker = PersonalData(
+                nombres=data.nombre.strip(),
+                apellidos=data.apellidos.strip(),
+                area=data.area.strip(),
+                codigo=data.codigo.strip(),
+                tipo_documento=data.tipo_documento.strip().upper(),
+                nro_documento=data.nro_documento.strip(),
+                foto=photo,
             )
-            if not output_path:
-                return
-
-            saved_path = Path(output_path)
-            carnet.save(saved_path, format="PNG")
-            messagebox.showinfo("Imagen generada", f"Imagen guardada en:\n{saved_path}")
+            if self.personal_repository is None:
+                self.personal_repository = PersonalRepository()
+            self.personal_repository.guardar_persona(worker, self._selected_document)
         except ValueError as exc:
             messagebox.showwarning("Datos invalidos", str(exc))
-        except FileNotFoundError as exc:
-            messagebox.showerror("Archivo no encontrado", str(exc))
-        except PermissionError:
-            messagebox.showerror("Error de permisos", "No se pudo guardar el archivo. Revisa permisos de la carpeta output.")
-        except OSError as exc:
-            messagebox.showerror("Error de archivo", f"Ocurrio un error de archivo: {exc}")
-        except Exception as exc:  # pragma: no cover - seguridad ante errores inesperados
-            messagebox.showerror("Error inesperado", f"No se pudo generar el carnet: {exc}")
+            return
+        except Exception as exc:
+            messagebox.showerror("No se pudo guardar", f"No se pudieron guardar los datos: {exc}")
+            return
+
+        self._selected_document = (worker.tipo_documento, worker.nro_documento)
+        self.photo_image = photo
+        self.photo_path = None
+        self._last_carnet_image = None
+        try:
+            self._refresh_personal()
+        except Exception as exc:
+            messagebox.showwarning("Datos guardados", f"Se guardaron los datos, pero no se pudo actualizar la lista: {exc}")
+            return
+        messagebox.showinfo("Datos guardados", f"Se guardaron todos los datos de {worker.nombre_completo}, incluida su fotografia.")
 
     def _on_generate_pdf(self) -> None:
         try:

@@ -18,7 +18,7 @@ BACK_IMAGE_PATH: Final[Path] = ASSETS_DIR / "back.png"
 APP_ICON_PATH: Final[Path] = ASSETS_DIR / "app.ico"
 
 PHOTO_AREA: Final[tuple[int, int, int, int]] = (184, 379, 454, 724)
-BARCODE_AREA: Final[tuple[int, int, int, int]] = (475, 379, 550, 724)
+BARCODE_AREA: Final[tuple[int, int, int, int]] = (475, 379, 600, 724)
 
 TEXT_BOXES: Final[dict[str, tuple[int, int, int, int]]] = {
     "nombre": (18, 717, 620, 777),

@@ -81,10 +81,11 @@ class CarnetService:
                 color=FIXED_TEXT_COLORS[key],
             )
 
-        barcode_image = BarcodeService.generar_codigo_barras(data.documento)
-        barcode_image = barcode_image.rotate(90, expand=True)
-        barcode_image = ImageService.redimensionar_en_area(barcode_image, BARCODE_AREA)
-        ImageService.pegar_en_area(carnet, barcode_image, BARCODE_AREA)
+        numero_documento = data.nro_documento.strip()
+        if numero_documento:
+            x1, y1, x2, y2 = BARCODE_AREA
+            barcode_image = BarcodeService.generar_en_area(numero_documento, x2 - x1, y2 - y1)
+            ImageService.pegar_en_area(carnet, barcode_image, BARCODE_AREA)
 
         return carnet
 
