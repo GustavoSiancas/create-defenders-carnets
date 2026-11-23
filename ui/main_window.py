@@ -116,7 +116,7 @@ class MainWindow(ctk.CTk):
 
         self.personal_selector = WorkerSearch(
             personal_frame,
-            values=["Sin personal guardado"],
+            values=["Sin defensores guardados"],
             command=self._select_worker,
             search=self._search_personal,
             state="disabled",

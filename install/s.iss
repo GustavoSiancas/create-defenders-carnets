@@ -2,19 +2,19 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 ; Non-commercial use only
 
-#define MyAppName "Generacion de Carnet de Trabajadores"
-#define MyAppVersion "1.07"
-#define MyAppPublisher "Generacion de Carnet de Trabajadores"
-#define MyAppExeName "Generacion_Carnet_Trabajadores.exe"
+#define MyAppName "Generacion de Carnet de Defensores"
+#define MyAppVersion "1.0.0"
+#define MyAppPublisher "Ilustre Colegio de Abogados de Lima"
+#define MyAppExeName "Generacion_Carnet_Defensores.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-AppId={{6B7F44E7-D623-4AD6-8920-5645BC56BBFC}
+AppId={{C006C4EF-0DBE-4E01-88E9-C521A8B5CB0A}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.0.7.0
+VersionInfoVersion=1.0.0.0
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
 VersionInfoDescription=Instalador de {#MyAppName}
@@ -33,12 +33,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ;SetupArchitecture=x64
 DisableProgramGroupPage=yes
 CloseApplications=yes
-CloseApplicationsFilter=app.exe,{#MyAppExeName}
+CloseApplicationsFilter={#MyAppExeName}
 RestartApplications=no
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir={#SourcePath}\Output
-OutputBaseFilename=Generacion_Carnet_Trabajadores_Setup
+OutputBaseFilename=Generacion_Carnet_Defensores_Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern dynamic
@@ -53,10 +53,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#SourcePath}\..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
-
-[InstallDelete]
-; Limpia exclusivamente el nombre usado por versiones antiguas del proyecto.
-Type: files; Name: "{app}\app.exe"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"

@@ -70,8 +70,3 @@ class ImageService:
         ImageDraw.Draw(layer).text((-left, -top), text, fill=color, font=font, anchor="ls")
         layer = layer.resize((max_width, layer.height), Image.Resampling.LANCZOS)
         image.paste(layer, (round((image.width - max_width) / 2), baseline_y + top), layer)
-
-    @staticmethod
-    def guardar_imagen(image: Image.Image, output_path: Path) -> None:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(output_path, format="PNG")

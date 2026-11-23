@@ -1,9 +1,8 @@
 # Impresion directa en Zebra ZXP Series 7
 
 El boton IMPRIMIR esta junto a EXPORTAR DATA y permanece bloqueado hasta completar
-foto, nombres, apellidos, area, codigo, tipo de documento y numero de documento.
-Al activarse, crea internamente un PDF temporal de dos paginas del carnet actual
-y lo envia en un unico trabajo. No abre visores ni dialogos de impresion. El PDF
+N° CAL, nombres y apellidos. Al activarse, crea internamente un PDF temporal de dos
+paginas del carnet actual (frente y reverso en blanco) y lo envia en un unico trabajo. No abre visores ni dialogos de impresion. El PDF
 temporal se elimina al terminar el envio. El resultado se muestra debajo de los
 botones. El ID mostrado corresponde al trabajo en la cola, no confirma que la
 tarjeta haya salido fisicamente.

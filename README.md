@@ -32,13 +32,15 @@ sobrescribir a otro defensor. El buscador encuentra por nombre o por N° CAL.
 Compilacion de Windows (PowerShell, desde la raiz del proyecto):
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm app.spec
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --onefile --windowed `
+    --name Generacion_Carnet_Defensores --icon assets\app.ico `
+    --add-data "assets;assets" --collect-data customtkinter app.py
 & 'C:\Program Files\Inno Setup 7\ISCC.exe' install\s.iss
 ```
-Ejecutable: dist/Generacion_Carnet_Trabajadores.exe.
-Instalador: install/Output/Generacion_Carnet_Trabajadores_Setup.exe.
-El instalador 1.1 conserva el AppId anterior para actualizar la misma aplicacion.
-La base de datos de personal no se incluye en el instalador ni se elimina al desinstalar.
+Ejecutable: dist/Generacion_Carnet_Defensores.exe.
+Instalador: install/Output/Generacion_Carnet_Defensores_Setup.exe.
+El instalador tiene su propio AppId: no reemplaza a la app de carnets de trabajadores.
+La base de datos de defensores no se incluye en el instalador ni se elimina al desinstalar.
 
 El PDF tiene dos paginas de 53.98 mm de ancho por 85.60 mm de alto (carnet vertical):
 el frente a pagina completa y el reverso en blanco, sin hoja A4 ni margenes agregados.

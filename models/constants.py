@@ -10,7 +10,6 @@ else:
     BASE_DIR = Path(__file__).resolve().parent.parent
 
 ASSETS_DIR: Final[Path] = BASE_DIR / "assets"
-OUTPUT_DIR: Final[Path] = BASE_DIR / "output"
 FONTS_DIR: Final[Path] = ASSETS_DIR / "fonts"
 
 TEMPLATE_IMAGE_PATH: Final[Path] = ASSETS_DIR / "front.png"

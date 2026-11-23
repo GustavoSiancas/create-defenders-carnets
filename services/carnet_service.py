@@ -15,7 +15,6 @@ from models.constants import (
     NCAL_BOX,
     NCAL_COLOR,
     NCAL_FONT_SIZE,
-    OUTPUT_DIR,
     TEMPLATE_IMAGE_PATH,
 )
 from services.image_service import ImageService
@@ -56,11 +55,6 @@ class CarnetService:
         )
         ImageService.dibujar_texto_en_linea_base(carnet, x1, NCAL_BASELINE_Y, ncal, ncal_font, NCAL_COLOR)
         return carnet
-
-    def guardar_carnet(self, image: Image.Image, ncal: str) -> Path:
-        output_path = OUTPUT_DIR / f"{PersonalService.normalizar_ncal(ncal)}.png"
-        ImageService.guardar_imagen(image, output_path)
-        return output_path
 
     @staticmethod
     def _resolve_font_path() -> Path:
