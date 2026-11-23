@@ -1,32 +1,33 @@
-# create-employee-carnets
+# create-defenders-carnets
 
+Carnet de Defensor(a) Ad Honorem del CAL. El carnet solo necesita dos datos:
+N° CAL y nombre completo. El numero se escribe junto a la etiqueta "CAL:" de la
+plantilla (assets/front.png) y el nombre, en mayusculas, debajo de la banda
+"Defensor(a) Ad Honorem" (en una o dos lineas segun su largo).
 
-El boton CARGAR AL SISTEMA importa archivos .xlsx a SQLite. El personal guardado
-se recupera al abrir la aplicacion.
+El boton CARGAR AL SISTEMA importa archivos .xlsx a SQLite. Los defensores
+guardados se recuperan al abrir la aplicacion.
 
-Encabezados: Nombre, Apellidos, Cargo, TipoDocumento, NroDocumento, Foto.
-Se admiten tambien Nombres, Cargo/ Area y Tipo de Documento del formato anterior.
-Codigo es opcional. TipoDocumento admite DNI o CE; tipo y numero son obligatorios.
-Guarda NroDocumento como texto en Excel para conservar ceros iniciales.
-Foto puede estar vacia, ser una ruta de imagen relativa al Excel o absoluta,
-o una imagen insertada anclada a su celda. Se conserva el soporte existente
-para fotos en celda de Excel.
+Encabezados del Excel: NCAL, NombreCompleto (en cualquier orden; se ignoran
+otras columnas). Tambien se aceptan "N° CAL", "Nro CAL", "CAL", "Nombre Completo",
+"Nombre", "Nombres y Apellidos" y "Apellidos y Nombres".
+NCAL solo admite numeros y es obligatorio, igual que NombreCompleto.
+Guarda NCAL como texto en Excel si necesitas conservar ceros iniciales.
+EXPORTAR DATA genera un Excel con los mismos encabezados, listo para volver a importar.
 
-Base de datos: data/personal.sqlite3 en desarrollo y
-%LOCALAPPDATA%/CarnetR/personal.sqlite3 en la aplicacion compilada.
-La tabla Personal incluye Nombre, Apellidos, Cargo, TipoDocumento, NroDocumento,
-Foto (BLOB PNG), Id y Codigo opcional para compatibilidad con los carnets.
-UNIQUE (TipoDocumento, NroDocumento) impide duplicados. La carga omite los
-existentes sin modificarlos e informa las cantidades guardadas y omitidas.
+Base de datos: data/defensores.sqlite3 en desarrollo y
+%LOCALAPPDATA%/CarnetDefensores/defensores.sqlite3 en la aplicacion compilada.
+La tabla Defensores tiene Id, NCAL (UNIQUE) y NombreCompleto. La carga omite los
+NCAL existentes sin modificarlos e informa las cantidades guardadas y omitidas.
 La importacion usa una transaccion: un error revierte toda la carga.
 
 Ejecutar: python app.py
 Pruebas: python -m unittest discover -s tests
 
-El boton amarillo GUARDAR persiste todos los campos del formulario y la foto.
-Actualiza la persona seleccionada, incluso si cambia su documento, y conserva
-la seleccion. Sin seleccion, crea una persona nueva. Los documentos duplicados
-se rechazan sin sobrescribir a otra persona.
+El boton amarillo GUARDAR persiste N° CAL y nombre completo. Actualiza al
+defensor seleccionado, incluso si cambia su NCAL, y conserva la seleccion.
+Sin seleccion, crea un defensor nuevo. Los NCAL duplicados se rechazan sin
+sobrescribir a otro defensor. El buscador encuentra por nombre o por N° CAL.
 
 Compilacion de Windows (PowerShell, desde la raiz del proyecto):
 ```powershell

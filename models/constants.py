@@ -17,31 +17,19 @@ TEMPLATE_IMAGE_PATH: Final[Path] = ASSETS_DIR / "front.png"
 BACK_IMAGE_PATH: Final[Path] = ASSETS_DIR / "back.png"
 APP_ICON_PATH: Final[Path] = ASSETS_DIR / "app.ico"
 
-PHOTO_AREA: Final[tuple[int, int, int, int]] = (184, 379, 454, 724)
-BARCODE_AREA: Final[tuple[int, int, int, int]] = (475, 379, 600, 724)
-
-TEXT_BOXES: Final[dict[str, tuple[int, int, int, int]]] = {
-    "nombre": (18, 717, 620, 777),
-    "apellidos": (18, 762, 620, 822),
-    "area": (18, 810, 620, 875),
-    # La plantilla ya incluye la etiqueta "CÓDIGO:" a la izquierda.
-    "codigo": (316, 853, 626, 918),
-}
-
 FONT_FILE_NAME: Final[str] = "Montserrat-ExtraBold.ttf"
 
-FIXED_TEXT_COLORS: Final[dict[str, str]] = {
-    "nombre": "#00396F",
-    "apellidos": "#00396F",
-    "area": "#000000",
-    "codigo": "#000000",
-}
+# La plantilla (638 x 1004 px) ya incluye la etiqueta "CAL:"; el numero se
+# escribe a su derecha, sobre la misma linea base.
+NCAL_BOX: Final[tuple[int, int, int, int]] = (314, 492, 610, 536)
+NCAL_BASELINE_Y: Final[int] = 529
+NCAL_COLOR: Final[str] = "#1B3350"
+NCAL_FONT_SIZE: Final[int] = 42
 
-DEFAULT_FONT_SIZES: Final[dict[str, int]] = {
-    "nombre": 46,
-    "apellidos": 46,
-    "area": 31,
-    "codigo": 35,
-}
+# Espacio libre entre la banda "Defensor(a) Ad Honorem" y "Periodo 2026-2027".
+NOMBRE_BOX: Final[tuple[int, int, int, int]] = (30, 616, 608, 690)
+NOMBRE_COLOR: Final[str] = "#1B3350"
+NOMBRE_FONT_SIZE: Final[int] = 34
+NOMBRE_MAX_LINES: Final[int] = 2
 
-MIN_DYNAMIC_FONT_SIZE: Final[int] = 22
+MIN_DYNAMIC_FONT_SIZE: Final[int] = 18

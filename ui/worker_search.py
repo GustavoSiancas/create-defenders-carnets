@@ -15,7 +15,7 @@ class WorkerSearch(ctk.CTkFrame):
         self._pending = None
         self.variable = tk.StringVar()
         self.entry = ctk.CTkEntry(self, textvariable=self.variable,
-                                 placeholder_text="Buscar por nombre completo")
+                                 placeholder_text="Buscar por nombre completo o N° CAL")
         self.entry.pack(side="left", fill="x", expand=True)
         self.button = ctk.CTkButton(self, text="\u25bc", width=28, command=self._show_all)
         self.button.pack(side="right", padx=(4, 0))
