@@ -13,19 +13,19 @@ class PersonalDeleteTest(unittest.TestCase):
     def test_delete_only_selected_ncal_and_persist(self):
         with tempfile.TemporaryDirectory() as folder:
             repository = PersonalRepository(Path(folder) / "defensores.sqlite3")
-            repository.guardar([PersonalData("001", "ANA PEREZ"), PersonalData("002", "LUIS PEREZ")])
-            repository.eliminar("001")
+            repository.guardar([PersonalData("001", "ANA", "PEREZ"), PersonalData("002", "LUIS", "PEREZ")])
+            repository.eliminar("000001")
             remaining = PersonalRepository(repository.path).listar()
-            self.assertEqual([d.ncal for d in remaining], ["002"])
+            self.assertEqual([d.ncal for d in remaining], ["000002"])
             with self.assertRaises(ValueError):
-                repository.eliminar("001")
+                repository.eliminar("000001")
             self.assertEqual(len(repository.listar()), 1)
 
     def make_window(self):
-        defensor = PersonalData("001", "ANA PEREZ")
+        defensor = PersonalData("000001", "ANA", "PEREZ")
         window = SimpleNamespace(
-            _selected_ncal="001", personal_repository=Mock(),
-            _personal_by_label={"Ana": defensor}, _value_entries={"ncal": Mock(), "nombre_completo": Mock()},
+            _selected_ncal="000001", personal_repository=Mock(),
+            _personal_by_label={"Ana": defensor}, _value_entries={"ncal": Mock(), "nombres": Mock(), "apellidos": Mock()},
             preview_label=Mock(), _refresh_personal=Mock(),
             _last_carnet_image=Mock(), _preview_ctk_image=Mock(), _update_print_availability=Mock(),
         )
@@ -39,15 +39,15 @@ class PersonalDeleteTest(unittest.TestCase):
         MainWindow._on_delete(window)
         window.personal_repository.eliminar.assert_not_called()
         window._value_entries["ncal"].delete.assert_not_called()
-        self.assertEqual(window._selected_ncal, "001")
+        self.assertEqual(window._selected_ncal, "000001")
 
     @patch("ui.main_window.messagebox")
     def test_confirm_deletes_original_selection_and_clears_form(self, messages):
         window = self.make_window()
         messages.askyesno.return_value = True
         MainWindow._on_delete(window)
-        self.assertIn("ANA PEREZ (CAL 001)", messages.askyesno.call_args.args[1])
-        window.personal_repository.eliminar.assert_called_once_with("001")
+        self.assertIn("ANA PEREZ (CAL 000001)", messages.askyesno.call_args.args[1])
+        window.personal_repository.eliminar.assert_called_once_with("000001")
         self.assertIsNone(window._selected_ncal)
         for entry in window._value_entries.values():
             entry.delete.assert_called_once_with(0, "end")

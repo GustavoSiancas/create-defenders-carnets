@@ -15,10 +15,11 @@ class PdfService:
     def generate_pdf(
         cls,
         front_image: Image.Image,
-        back_image_path: str | Path,
+        back_image_path: str | Path | None = None,
         output_folder: str | Path = "output",
         filename: str | None = None,
     ) -> str:
+        """Frente y reverso; sin imagen de reverso, la segunda pagina va en blanco."""
         output_folder_path = Path(output_folder)
         output_folder_path.mkdir(parents=True, exist_ok=True)
 
@@ -30,7 +31,10 @@ class PdfService:
         pdf.setViewerPreference("PrintScaling", "None")
 
         cls._add_page(pdf, front_image)
-        cls._add_page(pdf, Path(back_image_path))
+        if back_image_path is None:
+            cls._add_page(pdf, Image.new("RGB", front_image.size, "white"))
+        else:
+            cls._add_page(pdf, Path(back_image_path))
 
         pdf.save()
         return str(output_path)

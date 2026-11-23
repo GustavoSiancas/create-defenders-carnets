@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw
 from ui.worker_search import WorkerSearch
 from ui.preview_label import PreviewLabel
 
-from models.constants import APP_ICON_PATH, BACK_IMAGE_PATH
+from models.constants import APP_ICON_PATH
 from services.carnet_service import CarnetData, CarnetService
 from services.personal_service import PersonalData, PersonalService
 from services.personal_repository import PersonalRepository
@@ -71,7 +71,7 @@ class MainWindow(ctk.CTk):
 
         subtitle = ctk.CTkLabel(
             header,
-            text="Completa N° CAL y nombre, guarda al defensor y genera su carnet en PDF.",
+            text="Completa N° CAL, nombres y apellidos, guarda al defensor y genera su carnet en PDF.",
             text_color=("gray30", "gray70"),
             font=ctk.CTkFont(size=14),
         )
@@ -148,7 +148,8 @@ class MainWindow(ctk.CTk):
         delete_button.grid(row=0, column=1, padx=8, pady=(8, 12), sticky="e")
 
         self._create_text_row(table_frame, 1, "ncal", "N° CAL")
-        self._create_text_row(table_frame, 2, "nombre_completo", "Nombre completo")
+        self._create_text_row(table_frame, 2, "nombres", "Nombres")
+        self._create_text_row(table_frame, 3, "apellidos", "Apellidos")
 
         actions = ctk.CTkFrame(container, fg_color="transparent")
         actions.grid(row=3, column=0, padx=(20, 10), pady=(6, 20), sticky="ew")
@@ -213,11 +214,21 @@ class MainWindow(ctk.CTk):
 
         value_entry = ctk.CTkEntry(parent, placeholder_text=f"Ingresa {label}")
         value_entry.grid(row=row, column=1, padx=8, pady=8, sticky="ew")
-        if key == "nombre_completo":
+        if key in {"nombres", "apellidos"}:
             value_entry.bind("<KeyPress>", self._insert_uppercase, add="+")
             value_entry.bind("<KeyRelease>", self._force_uppercase)
         self._value_entries[key] = value_entry
         value_entry.bind("<KeyRelease>", self._update_print_availability, add="+")
+        if key == "ncal":
+            value_entry.bind("<FocusOut>", self._format_ncal_entry, add="+")
+
+    def _format_ncal_entry(self, _event=None) -> None:
+        """Completa el N° CAL con ceros a la izquierda hasta 6 digitos."""
+        entry = self._value_entries["ncal"]
+        formatted = PersonalService.normalizar_ncal(entry.get())
+        if formatted != entry.get():
+            self._set_entry_value("ncal", formatted)
+        self._update_print_availability()
 
     @staticmethod
     def _insert_uppercase(event) -> str | None:
@@ -334,7 +345,8 @@ class MainWindow(ctk.CTk):
 
         self._selected_ncal = worker.ncal
         self._set_entry_value("ncal", worker.ncal)
-        self._set_entry_value("nombre_completo", worker.nombre_completo)
+        self._set_entry_value("nombres", worker.nombres)
+        self._set_entry_value("apellidos", worker.apellidos)
         self._last_carnet_image = None
         self._on_preview()
         self._update_print_availability()
@@ -421,7 +433,8 @@ class MainWindow(ctk.CTk):
             data = self._collect_carnet_data()
             worker = PersonalData(
                 ncal=PersonalService.normalizar_ncal(data.ncal),
-                nombre_completo=PersonalService.normalizar_nombre(data.nombre_completo),
+                nombres=PersonalService.normalizar_nombre(data.nombres),
+                apellidos=PersonalService.normalizar_nombre(data.apellidos),
             )
             if self.personal_repository is None:
                 self.personal_repository = PersonalRepository()
@@ -444,7 +457,7 @@ class MainWindow(ctk.CTk):
         messagebox.showinfo("Datos guardados", f"Se guardaron los datos de {worker.nombre_completo} (CAL {worker.ncal}).")
 
     def _can_print_current(self) -> bool:
-        return all(self._value_entries[key].get().strip() for key in ("ncal", "nombre_completo"))
+        return all(self._value_entries[key].get().strip() for key in ("ncal", "nombres", "apellidos"))
 
     def _update_print_availability(self, _event=None) -> None:
         if self._print_pending:
@@ -453,7 +466,7 @@ class MainWindow(ctk.CTk):
         self.print_button.configure(state="normal" if enabled else "disabled")
         if not enabled:
             self.print_status.configure(
-                text="Completa N° CAL y nombre completo para imprimir.",
+                text="Completa N° CAL, nombres y apellidos para imprimir.",
                 text_color=("gray30", "gray70"),
             )
 
@@ -470,7 +483,6 @@ class MainWindow(ctk.CTk):
             temporary_path = Path(tempfile.gettempdir()) / f"carnet-zebra-{uuid4().hex}.pdf"
             PdfService.generate_pdf(
                 front_image=self._last_carnet_image,
-                back_image_path=self._resolve_back_image_path(),
                 output_folder=temporary_path.parent,
                 filename=temporary_path.name,
             )
@@ -514,7 +526,8 @@ class MainWindow(ctk.CTk):
             self._last_carnet_image = self._build_carnet(data)
             self._update_preview(self._last_carnet_image)
 
-            default_name = f"CAL_{data.ncal.strip()}_{data.nombre_completo.strip()}.pdf".replace(" ", "_")
+            ncal = PersonalService.normalizar_ncal(data.ncal)
+            default_name = f"CAL_{ncal}_{data.nombres.strip()}_{data.apellidos.strip()}.pdf".replace(" ", "_")
             output_path = filedialog.asksaveasfilename(
                 title="Guardar PDF",
                 defaultextension=".pdf",
@@ -524,10 +537,8 @@ class MainWindow(ctk.CTk):
             if not output_path:
                 return
 
-            back_image_path = self._resolve_back_image_path()
             PdfService.generate_pdf(
                 front_image=self._last_carnet_image,
-                back_image_path=back_image_path,
                 output_folder=Path(output_path).parent,
                 filename=Path(output_path).name,
             )
@@ -541,9 +552,11 @@ class MainWindow(ctk.CTk):
             messagebox.showerror("Error inesperado", f"No se pudo generar el PDF: {exc}")
 
     def _collect_carnet_data(self) -> CarnetData:
+        self._format_ncal_entry()
         return CarnetData(
             ncal=self._value_entries["ncal"].get(),
-            nombre_completo=self._value_entries["nombre_completo"].get(),
+            nombres=self._value_entries["nombres"].get(),
+            apellidos=self._value_entries["apellidos"].get(),
         )
 
     def _build_carnet(self, data: CarnetData) -> Image.Image:
@@ -554,10 +567,3 @@ class MainWindow(ctk.CTk):
         preview_image.thumbnail((390, 615), Image.Resampling.LANCZOS)
         self._preview_ctk_image = ctk.CTkImage(light_image=preview_image, dark_image=preview_image, size=preview_image.size)
         self.preview_label.configure(image=self._preview_ctk_image, text="")
-
-    @staticmethod
-    def _resolve_back_image_path() -> Path:
-        if BACK_IMAGE_PATH.exists():
-            return BACK_IMAGE_PATH
-        raise FileNotFoundError("No se encontro el reverso en assets/back.png.")
-

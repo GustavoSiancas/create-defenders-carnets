@@ -4,19 +4,26 @@ import unicodedata
 
 from openpyxl import load_workbook
 
+from models.constants import NCAL_DIGITS
+
 
 @dataclass(frozen=True)
 class PersonalData:
     ncal: str
-    nombre_completo: str
+    nombres: str
+    apellidos: str
+
+    @property
+    def nombre_completo(self) -> str:
+        return f"{self.nombres} {self.apellidos}".strip()
 
 
 class PersonalService:
     # Encabezado oficial y alias aceptados (se comparan sin tildes, espacios ni simbolos).
     HEADERS = {
         "ncal": ("NCAL", ["NCAL", "N CAL", "N° CAL", "Nº CAL", "Nro CAL", "Numero CAL", "CAL"]),
-        "nombre_completo": ("NombreCompleto", ["NombreCompleto", "Nombre Completo", "Nombre",
-                                               "Nombres y Apellidos", "Apellidos y Nombres"]),
+        "nombres": ("Nombres", ["Nombres", "Nombre"]),
+        "apellidos": ("Apellidos", ["Apellidos", "Apellido"]),
     }
 
     @classmethod
@@ -32,17 +39,17 @@ class PersonalService:
                 f"Archivo '{path.name}', estructura del Excel: no se pudo abrir. Detalle: {exc}"
             ) from exc
         try:
-            worksheet = workbook.active
-            rows = worksheet.iter_rows(values_only=True)
+            rows = workbook.active.iter_rows(values_only=True)
             columns = cls._resolve_columns(next(rows, ()))
             defensores: list[PersonalData] = []
             for row_number, values in enumerate(rows, start=2):
                 ncal = cls.normalizar_ncal(cls._value(values, columns["ncal"]))
-                nombre = cls.normalizar_nombre(cls._value(values, columns["nombre_completo"]))
-                if not ncal and not nombre:
+                nombres = cls.normalizar_nombre(cls._value(values, columns["nombres"]))
+                apellidos = cls.normalizar_nombre(cls._value(values, columns["apellidos"]))
+                if not any((ncal, nombres, apellidos)):
                     continue
-                cls.validar(ncal, nombre, prefix=f"Fila {row_number}: ")
-                defensores.append(PersonalData(ncal=ncal, nombre_completo=nombre))
+                cls.validar(ncal, nombres, apellidos, prefix=f"Fila {row_number}: ")
+                defensores.append(PersonalData(ncal, nombres, apellidos))
 
             if not defensores:
                 raise ValueError("El archivo no contiene defensores para cargar.")
@@ -51,21 +58,25 @@ class PersonalService:
             workbook.close()
 
     @staticmethod
-    def validar(ncal: str, nombre_completo: str, prefix: str = "") -> None:
+    def validar(ncal: str, nombres: str, apellidos: str, prefix: str = "") -> None:
         if not ncal:
             raise ValueError(f"{prefix}El N° CAL es obligatorio.")
         if not ncal.isdigit():
             raise ValueError(f"{prefix}El N° CAL '{ncal}' solo debe contener numeros.")
-        if not nombre_completo:
-            raise ValueError(f"{prefix}El nombre completo es obligatorio.")
+        if not nombres:
+            raise ValueError(f"{prefix}Los nombres son obligatorios.")
+        if not apellidos:
+            raise ValueError(f"{prefix}Los apellidos son obligatorios.")
 
     @staticmethod
     def normalizar_ncal(value) -> str:
+        """Texto sin espacios; si es numerico se completa con ceros a 6 digitos."""
         if value is None:
             return ""
         if isinstance(value, float) and value.is_integer():
-            return str(int(value))
-        return str(value).strip()
+            value = int(value)
+        ncal = str(value).strip()
+        return ncal.zfill(NCAL_DIGITS) if ncal.isdigit() else ncal
 
     @staticmethod
     def normalizar_nombre(value) -> str:

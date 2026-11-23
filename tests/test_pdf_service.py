@@ -31,3 +31,16 @@ class PdfServiceTest(unittest.TestCase):
                     self.assertEqual(call.kwargs["height"], page_size[1])
                     self.assertFalse(call.kwargs["preserveAspectRatio"])
                 pdf.save.assert_called_once()
+
+    def test_without_back_image_second_page_is_blank_white(self):
+        with tempfile.TemporaryDirectory() as folder:
+            front = Image.new("RGB", (638, 1004), "red")
+            with patch("services.pdf_service.canvas.Canvas") as canvas:
+                PdfService.generate_pdf(front, None, folder, "card.pdf")
+                pdf = canvas.return_value
+                self.assertEqual(pdf.drawImage.call_count, 2)
+                self.assertEqual(pdf.showPage.call_count, 2)
+                back = pdf.drawImage.call_args_list[1].args[0]
+                self.assertEqual(back.getSize(), front.size)
+                self.assertEqual(back.getRGBData()[:3], b"\xff\xff\xff")
+                self.assertEqual(set(back.getRGBData()), {255})

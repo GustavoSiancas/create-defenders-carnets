@@ -24,8 +24,10 @@ class PersonalRepository:
                     Id INTEGER PRIMARY KEY,
                     NCAL TEXT NOT NULL UNIQUE
                         CHECK (length(trim(NCAL)) > 0),
-                    NombreCompleto TEXT NOT NULL
-                        CHECK (length(trim(NombreCompleto)) > 0)
+                    Nombres TEXT NOT NULL
+                        CHECK (length(trim(Nombres)) > 0),
+                    Apellidos TEXT NOT NULL
+                        CHECK (length(trim(Apellidos)) > 0)
                 )
             """)
 
@@ -35,27 +37,30 @@ class PersonalRepository:
         with closing(sqlite3.connect(self.path)) as connection, connection:
             for defensor in defensores:
                 cursor = connection.execute("""
-                    INSERT INTO Defensores (NCAL, NombreCompleto) VALUES (?, ?)
+                    INSERT INTO Defensores (NCAL, Nombres, Apellidos) VALUES (?, ?, ?)
                     ON CONFLICT (NCAL) DO NOTHING
-                """, (defensor.ncal.strip(), defensor.nombre_completo.strip()))
+                """, (PersonalService.normalizar_ncal(defensor.ncal),
+                      defensor.nombres.strip(), defensor.apellidos.strip()))
                 inserted += cursor.rowcount
         return inserted, len(defensores) - inserted
 
     def guardar_persona(self, defensor: PersonalData, original_ncal: str | None = None) -> None:
         """Crea un defensor o actualiza el seleccionado, incluso si cambia su NCAL."""
         ncal = PersonalService.normalizar_ncal(defensor.ncal)
-        nombre = PersonalService.normalizar_nombre(defensor.nombre_completo)
-        PersonalService.validar(ncal, nombre)
+        nombres = PersonalService.normalizar_nombre(defensor.nombres)
+        apellidos = PersonalService.normalizar_nombre(defensor.apellidos)
+        PersonalService.validar(ncal, nombres, apellidos)
         try:
             with closing(sqlite3.connect(self.path)) as connection, connection:
                 if original_ncal is None:
                     connection.execute(
-                        "INSERT INTO Defensores (NCAL, NombreCompleto) VALUES (?, ?)", (ncal, nombre)
+                        "INSERT INTO Defensores (NCAL, Nombres, Apellidos) VALUES (?, ?, ?)",
+                        (ncal, nombres, apellidos),
                     )
                 else:
                     cursor = connection.execute(
-                        "UPDATE Defensores SET NCAL=?, NombreCompleto=? WHERE NCAL=?",
-                        (ncal, nombre, original_ncal),
+                        "UPDATE Defensores SET NCAL=?, Nombres=?, Apellidos=? WHERE NCAL=?",
+                        (ncal, nombres, apellidos, original_ncal),
                     )
                     if cursor.rowcount != 1:
                         raise ValueError("El defensor seleccionado ya no existe en la base de datos.")
@@ -69,7 +74,7 @@ class PersonalRepository:
                 raise ValueError("El defensor seleccionado ya no existe en la base de datos.")
 
     def listar(self, search: str = "") -> list[PersonalData]:
-        """Busca por fragmento del nombre (sin tildes ni mayusculas) o del NCAL."""
+        """Busca por fragmento del nombre completo (sin tildes ni mayusculas) o del NCAL."""
         def normalize(value: str) -> str:
             return "".join(char for char in unicodedata.normalize("NFD", value.casefold())
                            if unicodedata.category(char) != "Mn")
@@ -77,10 +82,10 @@ class PersonalRepository:
         with closing(sqlite3.connect(self.path)) as connection:
             connection.create_function("NORMALIZE", 1, normalize)
             rows = connection.execute("""
-                SELECT NCAL, NombreCompleto
+                SELECT NCAL, Nombres, Apellidos
                 FROM Defensores
-                WHERE instr(NORMALIZE(NombreCompleto), NORMALIZE(?1)) > 0
+                WHERE instr(NORMALIZE(Nombres || ' ' || Apellidos), NORMALIZE(?1)) > 0
                    OR instr(NCAL, trim(?1)) > 0
-                ORDER BY NORMALIZE(NombreCompleto), NCAL
+                ORDER BY NORMALIZE(Nombres || ' ' || Apellidos), NCAL
             """, (search.strip(),)).fetchall()
-        return [PersonalData(ncal=ncal, nombre_completo=nombre) for ncal, nombre in rows]
+        return [PersonalData(ncal, nombres, apellidos) for ncal, nombres, apellidos in rows]

@@ -20,20 +20,20 @@ class Entry:
 
 class PrintButtonTest(unittest.TestCase):
     def window(self, complete=True):
-        values = {key: Entry("OK" if complete else "") for key in ("ncal", "nombre_completo")}
+        values = {key: Entry("OK" if complete else "") for key in ("ncal", "nombres", "apellidos")}
         window = SimpleNamespace(
             _print_pending=False, _value_entries=values,
             _print_results=Queue(), print_button=Mock(), print_status=Mock(),
             after=Mock(), _check_print_result=Mock(), _collect_carnet_data=Mock(
-                return_value=CarnetData("12345", "ANA PEREZ")),
+                return_value=CarnetData("12345", "ANA", "PEREZ")),
             _build_carnet=Mock(return_value=Image.new("RGB", (638, 1004), "white")),
-            _update_preview=Mock(), _resolve_back_image_path=Mock(return_value=Path("assets/back.png")),
+            _update_preview=Mock(),
             _update_print_availability=Mock(), _last_carnet_image=None,
         )
         window._can_print_current = lambda: MainWindow._can_print_current(window)
         return window
 
-    def test_requires_ncal_and_full_name(self):
+    def test_requires_ncal_names_and_surnames(self):
         window = self.window()
         self.assertTrue(MainWindow._can_print_current(window))
         for key in window._value_entries:

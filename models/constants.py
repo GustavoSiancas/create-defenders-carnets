@@ -14,7 +14,6 @@ OUTPUT_DIR: Final[Path] = BASE_DIR / "output"
 FONTS_DIR: Final[Path] = ASSETS_DIR / "fonts"
 
 TEMPLATE_IMAGE_PATH: Final[Path] = ASSETS_DIR / "front.png"
-BACK_IMAGE_PATH: Final[Path] = ASSETS_DIR / "back.png"
 APP_ICON_PATH: Final[Path] = ASSETS_DIR / "app.ico"
 
 FONT_FILE_NAME: Final[str] = "Montserrat-ExtraBold.ttf"
@@ -25,11 +24,13 @@ NCAL_BOX: Final[tuple[int, int, int, int]] = (314, 492, 610, 536)
 NCAL_BASELINE_Y: Final[int] = 529
 NCAL_COLOR: Final[str] = "#1B3350"
 NCAL_FONT_SIZE: Final[int] = 42
+NCAL_DIGITS: Final[int] = 6
 
-# Espacio libre entre la banda "Defensor(a) Ad Honorem" y "Periodo 2026-2027".
-NOMBRE_BOX: Final[tuple[int, int, int, int]] = (30, 616, 608, 690)
-NOMBRE_COLOR: Final[str] = "#1B3350"
-NOMBRE_FONT_SIZE: Final[int] = 34
-NOMBRE_MAX_LINES: Final[int] = 2
+# Encima de "CAL:": linea 1 los nombres y linea 2 los apellidos, centrados.
+# Cada linea se achica por separado si no entra en el ancho disponible.
+NAME_BASELINES_Y: Final[dict[str, int]] = {"nombres": 433, "apellidos": 479}
+NAME_MARGIN_X: Final[int] = 24
+NAME_COLOR: Final[str] = "#12428A"
+NAME_FONT_SIZE: Final[int] = 41
 
 MIN_DYNAMIC_FONT_SIZE: Final[int] = 18
